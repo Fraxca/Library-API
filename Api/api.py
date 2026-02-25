@@ -23,14 +23,31 @@ def criar_tabelas() -> None:
     CREATE TABLE IF NOT EXISTS livros (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
-        author TEXT NOT NULL,
-        UNIQUE(title, author)
+        author TEXT NOT NULL
     )
     """)
 
     conexao.commit()
     conexao.close()
 
+
+
+livors = [{
+    "id": 1,
+    "title": "O Senhor dos Anéis",
+    "author": "J.R.R. Tolkien",
+    },
+    {
+    "id": 2,
+    "title": "Harry Potter e a Pedra Filosofal",
+    "author": "J.K. Rowling",
+    },
+    {
+    "id": 3,
+    "title": "O Código Da Vinci",
+    "author": "Dan Brown",
+    },
+]
 #Consultar todos
 @app.route("/livros", methods=["GET"])
 def get_livros():
@@ -48,22 +65,13 @@ def get_livros():
 def get_livro(id):
     conexao = conectar()
     cursor = conexao.cursor()
-    query = "SELECT id, title, author FROM livros WHERE id = ?"
-    params = []
-    if title := request.args.get("title"):
-        query += " AND title = ?"
-        params.append(title)
-    if author := request.args.get("author"):
-        query += " AND author = ?"
-        params.append(author)
-    cursor.execute(query, (id, *params))
-    livro_db = cursor.fetchone()
+    cursor.execute("SELECT id, title, author FROM livros WHERE id = ?", (id,))
+    livro = cursor.fetchone()
     conexao.close()
-    resultado = {"id": livro_db[0], "title": livro_db[1], "author": livro_db[2]} if livro_db else None
-    if resultado:
-        return jsonify(resultado)
+    if livro:
+        return jsonify({"id": livro[0], "title": livro[1], "author": livro[2]})
     return jsonify({"message": "Livro não encontrado"}), 404
-   
+
 #Editar
 @app.route("/livros/<int:id>", methods=["PUT"])
 def edit_livro(id):
@@ -76,53 +84,23 @@ def edit_livro(id):
     if cursor.fetchone() is None:
         conexao.close()
         return jsonify({"message": "Livro não encontrado"}), 404
-    conexao.close()
-    return jsonify({"message": "Livro atualizado com sucesso"})
 
 @app.route("/livros", methods=["POST"])
 def create_livro():
-    """
-    Tutorial de uso - Criar um novo livro
-    -------------------------------------
-    Endpoint: POST /livros
-    Cabeçalho: Content-Type: application/json
-    Corpo da requisição (JSON):
-        {
-            "title": "O Senhor dos Anéis",
-            "author": "J.R.R. Tolkien"
-        }
-
-    Resposta de sucesso (201):
-        {
-            "id": 1,
-            "title": "O Senhor dos Anéis",
-            "author": "J.R.R. Tolkien"
-        }
-
-    Possíveis erros:
-    - 400: Livro já existe (violação da restrição UNIQUE)
-    - 500: Erro inesperado no servidor
-    """
-
     novo_livro = request.get_json()
     conexao = conectar()
     cursor = conexao.cursor()
-    try:
-        cursor.execute(
-            "INSERT INTO livros (title, author) VALUES (?, ?)",
-            (novo_livro["title"], novo_livro["author"])
-        )
-        conexao.commit()
-        novo_id = cursor.lastrowid
+    cursor.execute("INSERT INTO livros (title, author) VALUES (?, ?)", (request.json["title"], request.json["author"]))
+    conexao.commit()
+    if cursor.rowcount == 0:
         conexao.close()
-        novo_livro["id"] = novo_id
-        return jsonify(novo_livro), 201
-    except sqlite3.IntegrityError as e:
-        conexao.close()
-        return jsonify({"message": f"Erro de integridade: {str(e)}"}), 400
-    except Exception as e:
-        conexao.close()
-        return jsonify({"message": f"Erro inesperado: {str(e)}"}), 500
+        return jsonify({"message": "Erro ao criar livro"}), 500
+    novo_id = cursor.lastrowid
+    conexao.close()
+    novo_livro = request.get_json()
+    novo_livro["id"] = novo_id
+    livors.append(novo_livro)
+    return jsonify(novo_livro)
 #Deletar
 @app.route("/livros/<int:id>", methods=["DELETE"])
 def delete_livro(id):
